@@ -1,9 +1,10 @@
-require("dotenv").config();
+
 const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const md5 = require('md5');
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const app = express();
 
@@ -41,19 +42,22 @@ app.post("/register", (req, res) => {
       res.redirect("/login");
       console.log(foundItem);
     } else {
-      const user = new User({
-        username: req.body.username,
-        password: md5(req.body.password),
-      });
 
-      user
-        .save()
-        .then(() => {
-          res.render("secrets", {});
-        })
-        .catch((err) => {
-          console.log(err);
+      bcrypt.hash(req.body.password, saltRounds).then(function(hash) {
+        const user = new User({
+          username: req.body.username,
+          password: hash,
         });
+  
+        user
+          .save()
+          .then(() => {
+            res.render("secrets", {});
+          })
+          .catch((err) => {
+            console.log(err);
+          });
+    });
     }
   }).catch((err) => {
     console.log(err);
@@ -63,16 +67,18 @@ app.post("/register", (req, res) => {
 
 app.post("/login", (req, res) => {
   const username = req.body.username;
-  const password = md5(req.body.password);
+  const password = req.body.password;
 
   User.findOne({ username: username })
     .then((foundItem) => {
       if (foundItem) {
-        if (foundItem.password === password) {
-          res.render("secrets");
-        } else {
-          res.render("login", { error: "Please enter correct Details" });
-        }
+        bcrypt.compare(password, foundItem.password).then(function(result) {
+          if (result == true) {
+            res.render("secrets");
+          } else {
+            res.render("login", { error: "Please enter correct Details" });
+          }
+       });
       } else {
         res.redirect("/register");
       }
